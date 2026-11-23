@@ -39,7 +39,18 @@ SHIFT_HOURS = 4.0
 # ============================================================
 # Input distribution parameters (provisional values; to be updated once B3–B5 are completed)
 # ============================================================
-ARRIVAL_RATE = None
-PRIORITY_MIX = None
-DOCTOR_SERVICE_PARAMS = None
-PHARMACY_SERVICE_PARAMS = None
+# Arrival rate (patients per hour)
+ARRIVAL_RATE = 11.6 
+
+# Priority mix (P1, P2, P3)
+PRIORITY_MIX = {1: 0.658, 2: 0.294, 3: 0.049}
+
+# Doctor service time (minutes) - triangular distribution
+DOCTOR_SERVICE_MIN = 10.0
+DOCTOR_SERVICE_MODE = 13.4
+DOCTOR_SERVICE_MAX = 20.0
+
+# Pharmacy service time (minutes) - triangular distribution
+PHARMACY_SERVICE_MIN = 2.0
+PHARMACY_SERVICE_MODE = 3.0
+PHARMACY_SERVICE_MAX = 5.0
