@@ -9,6 +9,10 @@ import simpy
 from config import *
 
 
+_GAPS = {period: (np.array(list(pmf.keys())), np.array(list(pmf.values())))
+         for period, pmf in ARRIVAL_GAP_PMF.items()}
+
+
 def make_patients(seed):
     """Generate the patient list for one replication. Same seed -> same list for every policy."""
     rng = np.random.default_rng(seed)
@@ -18,8 +22,8 @@ def make_patients(seed):
     med_v = np.array(list(MED_SERVICE_PMF.keys())); med_p = np.array(list(MED_SERVICE_PMF.values()))
     t, patients = 0.0, []
     for pid in range(N_PATIENTS):
-        rate = ARRIVAL_RATE_PEAK if t < PEAK_MINUTES else ARRIVAL_RATE_POST
-        t += rng.exponential(1.0 / rate)
+        gap_v, gap_p = _GAPS['peak' if t < PEAK_MINUTES else 'post']
+        t += float(rng.choice(gap_v, p=gap_p))          # empirical interarrival gap (minutes)
         patients.append({
             'pid': pid,
             'arrival': t,

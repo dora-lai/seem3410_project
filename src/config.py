@@ -37,7 +37,7 @@ if not os.path.exists(_inputs_path):
 with open(_inputs_path) as f:
     _inp = json.load(f)
 
-ARRIVAL_RATE_PEAK = _inp['arrival_rate_per_min']['peak']     # patients per minute
+ARRIVAL_RATE_PEAK = _inp['arrival_rate_per_min']['peak']     # patients per minute (for reference only)
 ARRIVAL_RATE_POST = _inp['arrival_rate_per_min']['post']
 
 def _normalize(d, cast):
@@ -47,3 +47,4 @@ def _normalize(d, cast):
 PRIORITY_MIX = _normalize(_inp['priority_mix'], int)         # sums to exactly 1
 DOC_SERVICE_PMF = _normalize(_inp['doc_service_pmf'], float)
 MED_SERVICE_PMF = _normalize(_inp['med_service_pmf'], float)
+ARRIVAL_GAP_PMF = {period: _normalize(pmf, float) for period, pmf in _inp['arrival_gap_pmf'].items()}   # minutes between arrivals

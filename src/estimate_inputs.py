@@ -51,7 +51,19 @@ for name, ser, label in (('doctor', doc, 'Doctor service time (minutes)'), ('pha
     plt.title(f'Empirical {name} service-time distribution (baseline scenario)')
     plt.savefig(os.path.join(ROOT, 'figures', f'b5_{name}_pmf.png'), dpi=150, bbox_inches='tight'); plt.close()
 
+# ---- arrival model: empirical interarrival-gap tables (gaps are regular, CV well below 1, so NOT exponential) ----
+gap_pmf = {}
+for flag, label in ((1, 'peak'), (0, 'post')):
+    sg = b[b['IsPeakArrival'] == flag]['gap'].dropna()
+    if len(sg):
+        gap_pmf[label] = {str(k): float(v) for k, v in sg.value_counts(normalize=True).sort_index().items()}
+if 'post' not in gap_pmf:
+    gap_pmf['post'] = gap_pmf['peak']
+if b['gap'].nunique() > 40:
+    print('NOTE: many distinct gap values; consider a continuous distribution instead of a table')
+
 out = {
+    'arrival_gap_pmf': gap_pmf,
     'arrival_rate_per_min': {'peak': float(rate_peak), 'post': float(rate_post)},
     'priority_mix': {str(k): float(v) for k, v in mix.items()},
     'doc_service_pmf': {str(k): float(v) for k, v in doc.items()},
