@@ -1,0 +1,6 @@
+Wait_Value_HKD_hr,PeakMatched_w*_2to3,PeakMatched_w*_3to4,FullRunMatched_w*_2to3,FullRunMatched_w*_3to4,Pref_PeakMatched_at_W500,Pref_FullMatched_at_W500
+30,507.1,49.8,996.7,16.8,Policy_A (3 doc),Policy_A (3 doc)
+60,1014.1,99.7,1993.4,33.7,Policy_A (3 doc),Policy_A (3 doc)
+120,2028.3,199.4,3986.9,67.4,Policy_A (3 doc),Policy_A (3 doc)
+180,3042.4,299.1,5980.3,101.1,Policy_A (3 doc),Policy_A (3 doc)
+300,5070.6,498.4,9967.2,168.5,Policy_A (3 doc),Policy_A (3 doc)

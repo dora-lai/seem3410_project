@@ -21,13 +21,29 @@ POLICIES = {
     'Policy_B': {'n_doctors': 4, 'n_pharmacy': 1},
 }
 
+# Secondary analysis: optional second pharmacy counter                           # <-- NEW
+SECONDARY_POLICIES = {                                                         # <-- NEW
+    'Baseline_2Pharm': {'n_doctors': 2, 'n_pharmacy': 2},                      # <-- NEW
+    'Policy_A_2Pharm': {'n_doctors': 3, 'n_pharmacy': 2},                      # <-- NEW
+    'Policy_B_2Pharm': {'n_doctors': 4, 'n_pharmacy': 2},                      # <-- NEW
+}                                                                              # <-- NEW
+
 # ---- Service target
 TARGET_P90 = 15.0
 ALT_TARGETS = [10.0, 20.0, 30.0]
 
 # ---- Cost (assumed values; state this in the report)
-DOCTOR_WAGE_PER_HOUR = 500
-SHIFT_HOURS = 4.0
+CURRENCY = 'HKD'                                                               # <-- NEW
+DOCTOR_WAGE_PER_HOUR = 500      # Assumed hourly wage per doctor (HKD/hr)
+PHARMACY_WAGE_PER_HOUR = 200    # Assumed hourly wage per pharmacy counter     # <-- NEW
+SHIFT_HOURS = 4.0               # Same fixed shift length for all policies (matches 240-min peak)
+
+def compute_staffing_cost(n_doctors, n_pharmacy=1, include_pharmacy=False):    # <-- NEW
+    """Return staffing cost per shift for a given policy."""                   # <-- NEW
+    cost = n_doctors * DOCTOR_WAGE_PER_HOUR * SHIFT_HOURS                      # <-- NEW
+    if include_pharmacy:                                                       # <-- NEW
+        cost += n_pharmacy * PHARMACY_WAGE_PER_HOUR * SHIFT_HOURS              # <-- NEW
+    return cost                                                                # <-- NEW
 
 # ---- Inputs estimated from the dataset (synthetic): see estimate_inputs.py
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # project folder (src/ is inside it)
