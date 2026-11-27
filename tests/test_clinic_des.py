@@ -1,8 +1,6 @@
 """
-Automated verification tests for the unified two-stage outpatient clinic DES.
+Unit and verification tests for the outpatient clinic DES model.
 """
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 import numpy as np
@@ -15,24 +13,24 @@ if str(SRC_DIR) not in sys.path:
 from calibrate_inputs import calibrate_from_csv
 from clinic_des import (
     CALIBRATED_JSON_PATH,
+    create_crn_streams,
+    generate_daily_patients,
     load_calibrated_inputs,
-    realize_patient_cohort,
     simulate_clinic,
-    spawn_replication_uniforms,
 )
 from config import RAW_CSV_PATH
 
 
 def test_non_preemptive_priority_and_fcfs_tie_break():
     """
-    Hand-calculable 4-patient trace with 1 doctor and 1 pharmacy counter:
+    Hand-checked 4-patient trace with 1 doctor and 1 pharmacy counter:
       - P1 (prio 1) arrives at t=0, consults [0, 10], pharmacy [10, 13] -> doc_wait = 0
-      - P2 (prio 1) arrives at t=2, waits in Q1
-      - P3 (prio 3) arrives at t=4 -> higher priority than P2, does NOT preempt P1;
+      - P2 (prio 1) arrives at t=2, waits in queue
+      - P3 (prio 3) arrives at t=4 -> higher priority than P2, does not preempt P1;
         starts consult at t=10 -> doc_wait = 10 - 4 = 6
-      - P4 (prio 3) arrives at t=10 (simultaneous with P1 DOC_END!) -> enters Q1 before
-        doctor selects next patient; ties priority=3 with P3, so FCFS serves P3 at t=10
-        and P4 at t=15 -> P4 doc_wait = 15 - 10 = 5, P2 starts at t=20 -> doc_wait = 18.
+      - P4 (prio 3) arrives at t=10 (same timestamp as P1 DOC_END) -> enters queue before
+        doctor picks next patient; ties priority=3 with P3, so FCFS serves P3 at t=10
+        and P4 at t=15 -> P4 doc_wait = 5, P2 starts at t=20 -> doc_wait = 18.
     """
     arr = np.array([0.0, 2.0, 4.0, 10.0])
     prio = np.array([1, 1, 3, 3])
@@ -53,27 +51,33 @@ def test_sample_path_littles_law_and_crn_determinism():
     if not CALIBRATED_JSON_PATH.exists():
         calibrate_from_csv()
     cal = load_calibrated_inputs()
-    u1 = spawn_replication_uniforms(3, seed=3410)
-    u2 = spawn_replication_uniforms(3, seed=3410)
+    s1 = create_crn_streams(3, seed=3410)
+    s2 = create_crn_streams(3, seed=3410)
 
-    for a, b in zip(u1, u2):
+    for a, b in zip(s1, s2):
         np.testing.assert_allclose(a["u_arrival"], b["u_arrival"])
-        cohort = realize_patient_cohort(a, cal)
-        out2 = simulate_clinic(cohort["arrival_times"], cohort["priorities"], cohort["doc_services"], cohort["med_services"], n_doctors=2)
-        out3 = simulate_clinic(cohort["arrival_times"], cohort["priorities"], cohort["doc_services"], cohort["med_services"], n_doctors=3)
-        out4 = simulate_clinic(cohort["arrival_times"], cohort["priorities"], cohort["doc_services"], cohort["med_services"], n_doctors=4)
+        day = generate_daily_patients(a, cal)
+        out2 = simulate_clinic(
+            day["arrival_times"], day["priorities"], day["doc_services"], day["med_services"], n_doctors=2
+        )
+        out3 = simulate_clinic(
+            day["arrival_times"], day["priorities"], day["doc_services"], day["med_services"], n_doctors=3
+        )
+        out4 = simulate_clinic(
+            day["arrival_times"], day["priorities"], day["doc_services"], day["med_services"], n_doctors=4
+        )
 
-        # Sample-path Little's Law: integral of queue length == sum of customer waiting times
+        # Over a clearing day, integral of queue length equals total waiting time
         assert abs(out3["summary"]["area_doc_queue"] - float(np.sum(out3["patients"]["doc_wait"]))) < 1e-9
         assert abs(out3["summary"]["area_pharm_queue"] - float(np.sum(out3["patients"]["med_wait"]))) < 1e-9
 
-        # Monotonicity of consultation waits as doctor count increases on identical patient stream
+        # Adding doctors on the exact same patient day should not increase mean consultation wait
         assert out4["summary"]["mean_doc_wait"] <= out3["summary"]["mean_doc_wait"] <= out2["summary"]["mean_doc_wait"]
 
 
 def test_exact_historical_replay_zero_mismatch():
     df = pd.read_csv(RAW_CSV_PATH)
-    # Check RunID=1 across all 6 scenarios (1,200 patients) in fast unit test
+    # Check RunID=1 across all 6 scenarios (1,200 patients)
     sub_df = df[df["RunID"] == 1]
     for (_, _), grp in sub_df.groupby(["Scenario", "RunID"]):
         grp = grp.sort_values("PatientID")

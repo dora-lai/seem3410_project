@@ -1,13 +1,10 @@
 """
-Empirical input analysis and distribution calibration (SEEM3410 Week 5).
+Input data checks and empirical distribution fitting from hospital_sim_6_scenarios.csv.
 
-Reads data/hospital_sim_6_scenarios.csv, checks structural integrity across all
-six scenarios, calibrates the four exogenous random inputs from the 10,000-row
-baseline scenario (Baseline_2Doc_240Peak), runs independence tests, and saves
-calibrated distributions and summary tables.
+We fit all input distributions using only the baseline scenario (Baseline_2Doc_240Peak,
+10,000 patient records across 50 runs) so that the other five scenarios can be used
+as held-out validation checks.
 """
-from __future__ import annotations
-
 import json
 import numpy as np
 import pandas as pd
@@ -22,7 +19,7 @@ from config import (
 )
 
 
-def _pmf_dict(series: pd.Series, cast=int) -> dict:
+def _pmf_summary(series, cast=int):
     counts = series.value_counts().sort_index()
     total = int(counts.sum())
     return {
@@ -37,52 +34,57 @@ def _pmf_dict(series: pd.Series, cast=int) -> dict:
     }
 
 
-def calibrate_from_csv(csv_path=RAW_CSV_PATH) -> dict:
+def calibrate_from_csv(csv_path=RAW_CSV_PATH):
     df = pd.read_csv(csv_path)
 
-    # 1. Dataset-wide integrity checks across all 6 scenarios (60,000 rows)
+    # Basic sanity checks on the raw CSV (6 scenarios x 50 runs x 200 patients)
     scenario_counts = df.groupby(["Scenario", "NumDoctors", "PeakLimit"]).size()
     assert len(df) == 60_000, f"Expected 60,000 rows, found {len(df)}"
     assert len(scenario_counts) == 6, "Expected 6 scenarios"
     assert (scenario_counts == 10_000).all(), "Each scenario must have 50 x 200 = 10,000 rows"
     assert df.isna().sum().sum() == 0, "Unexpected missing values in raw CSV"
 
-    # Verify exact identity TotalTimeInHospital = DocWaitTime + DocServiceTime + MedWaitTime + MedServiceTime
     reconstructed_total = (
         df["DocWaitTime"] + df["DocServiceTime"] + df["MedWaitTime"] + df["MedServiceTime"]
     )
     assert (reconstructed_total == df["TotalTimeInHospital"]).all(), "Total time identity failed"
 
-    # Verify single-counter pharmacy non-overlap in all 300 runs
+    # Check that pharmacy service intervals never overlap within a run (confirms 1 pharmacy counter)
     df_tmp = df.copy()
-    df_tmp["PharmStart"] = df_tmp["ArrivalTime"] + df_tmp["DocWaitTime"] + df_tmp["DocServiceTime"] + df_tmp["MedWaitTime"]
+    df_tmp["PharmStart"] = (
+        df_tmp["ArrivalTime"]
+        + df_tmp["DocWaitTime"]
+        + df_tmp["DocServiceTime"]
+        + df_tmp["MedWaitTime"]
+    )
     df_tmp["PharmEnd"] = df_tmp["PharmStart"] + df_tmp["MedServiceTime"]
     df_tmp = df_tmp.sort_values(["Scenario", "RunID", "PharmStart", "PharmEnd"])
     prev_end = df_tmp.groupby(["Scenario", "RunID"])["PharmEnd"].shift(1)
     max_overlap = float((prev_end - df_tmp["PharmStart"]).dropna().max())
     assert max_overlap <= 0.0, f"Detected overlapping pharmacy service: {max_overlap}"
 
-    # 2. Extract Baseline_2Doc_240Peak (50 runs x 200 patients = 10,000 patients)
+    # Fit input distributions on Baseline_2Doc_240Peak only
     base = (
         df[df["Scenario"] == BASELINE_SCENARIO]
         .sort_values(["RunID", "PatientID"])
         .reset_index(drop=True)
     )
+    # Keep Patient 1's gap from t = 0 via fill_value=0 instead of .diff(), since the first
+    # patient's arrival time is already an interarrival draw from clinic opening.
     base["PrevArrivalTime"] = base.groupby("RunID")["ArrivalTime"].shift(1, fill_value=0)
     base["InterarrivalGap"] = base["ArrivalTime"] - base["PrevArrivalTime"]
 
-    # Peak regime applies while current clock < 240 min before generating next arrival gap
-    # (includes PatientID=1 generated from clock = 0; never drop first arrival via .diff())
+    # Peak vs off-peak is determined by whether the clock is < 240 min before drawing the next gap
     peak_gaps = base.loc[base["PrevArrivalTime"] < PEAK_MINUTES, "InterarrivalGap"]
     offpeak_gaps = base.loc[base["PrevArrivalTime"] >= PEAK_MINUTES, "InterarrivalGap"]
 
-    peak_info = _pmf_dict(peak_gaps, int)
-    offpeak_info = _pmf_dict(offpeak_gaps, int)
-    prio_info = _pmf_dict(base["Priority"], int)
-    doc_info = _pmf_dict(base["DocServiceTime"], int)
-    med_info = _pmf_dict(base["MedServiceTime"], int)
+    peak_info = _pmf_summary(peak_gaps, int)
+    offpeak_info = _pmf_summary(offpeak_gaps, int)
+    prio_info = _pmf_summary(base["Priority"], int)
+    doc_info = _pmf_summary(base["DocServiceTime"], int)
+    med_info = _pmf_summary(base["MedServiceTime"], int)
 
-    # 3. Statistical independence checks (justify independent RNG substreams)
+    # Check independence across priority, consultation time, pharmacy time, and consecutive gaps
     ct_doc_prio = pd.crosstab(base["Priority"], base["DocServiceTime"])
     chi2_dp, p_dp, dof_dp, _ = stats.chi2_contingency(ct_doc_prio)
 
@@ -94,7 +96,6 @@ def calibrate_from_csv(csv_path=RAW_CSV_PATH) -> dict:
         peak_gaps.iloc[:-1].to_numpy(), peak_gaps.iloc[1:].to_numpy()
     )
 
-    # Offered load and per-doctor traffic intensity summary
     lam_peak_min = 1.0 / peak_info["mean"]
     lam_off_min = 1.0 / offpeak_info["mean"]
     mu_doc_min = 1.0 / doc_info["mean"]
@@ -146,7 +147,6 @@ def calibrate_from_csv(csv_path=RAW_CSV_PATH) -> dict:
     with open(CALIBRATED_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(calibrated, f, indent=2)
 
-    # Save concise input summary table for Section 2 of the report
     summary_rows = [
         {
             "Input": "Interarrival gap (Peak, t < 240 min)",
@@ -210,11 +210,11 @@ if __name__ == "__main__":
     print(f"Saved calibrated parameters to {CALIBRATED_JSON_PATH}")
     print(
         f"Peak gap mean = {cal['interarrival_peak']['mean']:.3f} min "
-        f"(lambda_peak = {r['lambda_peak_per_hr']:.2f}/hr, CV = {cal['interarrival_peak']['cv']:.3f})"
+        f"(rate = {r['lambda_peak_per_hr']:.2f}/hr, CV = {cal['interarrival_peak']['cv']:.3f})"
     )
     print(
         f"Off-peak gap mean = {cal['interarrival_offpeak']['mean']:.3f} min "
-        f"(lambda_off = {r['lambda_offpeak_per_hr']:.2f}/hr, CV = {cal['interarrival_offpeak']['cv']:.3f})"
+        f"(rate = {r['lambda_offpeak_per_hr']:.2f}/hr, CV = {cal['interarrival_offpeak']['cv']:.3f})"
     )
     print(
         f"Doctor service mean = {cal['doc_service_time']['mean']:.3f} min "

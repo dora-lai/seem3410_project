@@ -1,13 +1,7 @@
 """
-Simulation experimental design and policy analysis (SEEM3410 Week 6):
-  1. Main 3-policy CRN comparison (2, 3, 4 doctors; 50 paired replications)
-  2. Paired t-confidence intervals and CRN variance-reduction quantification
-  3. Downstream 1- vs 2-counter pharmacy analysis
-  4. Week 6 2^2 full factorial experiments (main effects and interaction effects)
-  5. One-way sensitivity suite and Policy A break-even threshold scan
+Policy comparison, paired CRN analysis, pharmacy capacity check, 2x2 factorial
+experiments, and parameter sensitivity runs.
 """
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -15,24 +9,22 @@ from scipy import stats
 from calibrate_inputs import calibrate_from_csv
 from clinic_des import (
     CALIBRATED_JSON_PATH,
+    create_crn_streams,
+    generate_daily_patients,
     load_calibrated_inputs,
-    realize_patient_cohort,
     simulate_clinic,
-    spawn_replication_uniforms,
 )
 from config import (
     ALT_TARGETS_MIN,
     N_PATIENTS,
     N_REPLICATIONS,
-    PEAK_MINUTES,
     POLICIES,
     PRIMARY_TARGET_MIN,
     RESULTS_DIR,
-    compute_policy_costs,
 )
 
 
-def mean_ci95(values: np.ndarray | pd.Series, nonneg: bool = False) -> tuple[float, float, float, float]:
+def mean_ci95(values, nonneg=False):
     arr = np.asarray(values, dtype=float)
     n = len(arr)
     mean = float(np.mean(arr))
@@ -43,14 +35,14 @@ def mean_ci95(values: np.ndarray | pd.Series, nonneg: bool = False) -> tuple[flo
     return mean, sd, lo, mean + hw
 
 
-def paired_diff_stats(y_new: np.ndarray, y_ref: np.ndarray) -> dict:
+def paired_diff_stats(y_new, y_ref):
     diff = np.asarray(y_new, dtype=float) - np.asarray(y_ref, dtype=float)
     n = len(diff)
     mean_d, sd_d, lo_d, hi_d = mean_ci95(diff)
     se_crn = sd_d / np.sqrt(n)
     se_indep = float(np.sqrt(np.var(y_new, ddof=1) / n + np.var(y_ref, ddof=1) / n))
     vr_ratio = (se_indep ** 2) / (se_crn ** 2) if se_crn > 0 else np.nan
-    t_stat, p_val = stats.ttest_1samp(diff, 0.0)
+    _, p_val = stats.ttest_1samp(diff, 0.0)
     return {
         "mean_diff": mean_d,
         "sd_diff": sd_d,
@@ -63,19 +55,19 @@ def paired_diff_stats(y_new: np.ndarray, y_ref: np.ndarray) -> dict:
     }
 
 
-def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFrame]:
+def run_main_experiments(cal, streams):
     traj_grid = np.arange(0.0, 1405.0, 5.0)
     rep_rows = []
-    traj_store: dict[str, list[np.ndarray]] = {k: [] for k in POLICIES}
+    traj_store = {k: [] for k in POLICIES}
 
-    for u in uniforms:
-        cohort = realize_patient_cohort(u, cal, n_patients=N_PATIENTS, arrival_mode="empirical")
+    for u in streams:
+        day = generate_daily_patients(u, cal, n_patients=N_PATIENTS, arrival_mode="empirical")
         for pol_key, pol_cfg in POLICIES.items():
             out = simulate_clinic(
-                cohort["arrival_times"],
-                cohort["priorities"],
-                cohort["doc_services"],
-                cohort["med_services"],
+                day["arrival_times"],
+                day["priorities"],
+                day["doc_services"],
+                day["med_services"],
                 n_doctors=pol_cfg["n_doctors"],
                 n_pharmacy=pol_cfg["n_pharmacy"],
                 trajectory_grid=traj_grid,
@@ -88,7 +80,6 @@ def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFr
     rep_df = pd.DataFrame(rep_rows)
     rep_df.to_csv(RESULTS_DIR / "main_replications.csv", index=False)
 
-    # Aggregate policy summary table with 95% t-CIs
     metrics = [
         "p90_doc_wait",
         "mean_doc_wait",
@@ -119,7 +110,7 @@ def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFr
     summary_rows = []
     for pol_key, pol_cfg in POLICIES.items():
         sub = rep_df[rep_df["policy_key"] == pol_key].sort_values("rep_id")
-        s_row: dict[str, object] = {
+        s_row = {
             "policy_key": pol_key,
             "policy_label": pol_cfg["label"],
             "n_doctors": pol_cfg["n_doctors"],
@@ -140,7 +131,6 @@ def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFr
     summary_df = pd.DataFrame(summary_rows)
     summary_df.to_csv(RESULTS_DIR / "main_policy_summary.csv", index=False)
 
-    # CRN paired comparisons across policies
     pairs = [
         ("Policy_A", "Baseline", "Policy A (3 Docs) vs Baseline (2 Docs)"),
         ("Policy_B", "Baseline", "Policy B (4 Docs) vs Baseline (2 Docs)"),
@@ -165,10 +155,10 @@ def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFr
     paired_df = pd.DataFrame(paired_rows)
     paired_df.to_csv(RESULTS_DIR / "paired_comparisons.csv", index=False)
 
-    # Save 5-minute queue trajectory quantiles for Figure 3
+    # 5-minute doctor queue length quantiles across the day
     traj_rows = []
     for idx, t_min in enumerate(traj_grid):
-        t_row: dict[str, float] = {"time_min": float(t_min)}
+        t_row = {"time_min": float(t_min)}
         for pol_key in POLICIES:
             mat = np.asarray(traj_store[pol_key])[:, idx]
             t_row[f"{pol_key}_mean_q"] = float(np.mean(mat))
@@ -186,20 +176,20 @@ def run_main_experiments(cal: dict, uniforms: list[dict]) -> dict[str, pd.DataFr
     }
 
 
-def run_pharmacy_counter_experiment(cal: dict, uniforms: list[dict]) -> pd.DataFrame:
-    """Evaluate 1 vs 2 pharmacy counters across 2, 3, and 4 doctors using CRN."""
+def run_pharmacy_counter_experiment(cal, streams):
+    """Test whether adding a 2nd pharmacy counter materially changes waits under 2, 3, or 4 doctors."""
     rows = []
     for n_doc in (2, 3, 4):
         res_m = {1: [], 2: []}
-        for u in uniforms:
-            cohort = realize_patient_cohort(u, cal, n_patients=N_PATIENTS, arrival_mode="empirical")
+        for u in streams:
+            day = generate_daily_patients(u, cal, n_patients=N_PATIENTS, arrival_mode="empirical")
             for n_ph in (1, 2):
                 res_m[n_ph].append(
                     simulate_clinic(
-                        cohort["arrival_times"],
-                        cohort["priorities"],
-                        cohort["doc_services"],
-                        cohort["med_services"],
+                        day["arrival_times"],
+                        day["priorities"],
+                        day["doc_services"],
+                        day["med_services"],
                         n_doctors=n_doc,
                         n_pharmacy=n_ph,
                     )["summary"]
@@ -228,11 +218,11 @@ def run_pharmacy_counter_experiment(cal: dict, uniforms: list[dict]) -> pd.DataF
     return out_df
 
 
-def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def run_factorial_2x2_experiments(cal, streams):
     """
-    Week 6 2^2 Full Factorial Designs around the critical c = 3 vs c = 4 staffing boundary:
-      Design 1: Factor A = Doctors (3 vs 4) x Factor B = Arrival Variability (Empirical CV=0.26 vs Poisson CV=1.00)
-      Design 2: Factor A = Doctors (3 vs 4) x Factor B = Consultation Duration (Baseline vs +10%)
+    Run two 2x2 factorial experiments around the 3- vs 4-doctor decision:
+      1. Doctors (3 vs 4) x Arrival regularity (Empirical CV=0.26 vs Poisson CV=1.00)
+      2. Doctors (3 vs 4) x Consultation duration (Baseline vs +10%)
     """
     cell_rows = []
     effect_rows = []
@@ -261,11 +251,11 @@ def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.D
     ]
 
     for d in designs:
-        y_rep: dict[tuple[int, int], np.ndarray] = {}
+        y_rep = {}
         for key, cfg in d["configs"].items():
             vals = []
-            for u in uniforms:
-                cohort = realize_patient_cohort(
+            for u in streams:
+                day = generate_daily_patients(
                     u,
                     cal,
                     n_patients=N_PATIENTS,
@@ -274,15 +264,15 @@ def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.D
                 )
                 vals.append(
                     simulate_clinic(
-                        cohort["arrival_times"],
-                        cohort["priorities"],
-                        cohort["doc_services"],
-                        cohort["med_services"],
+                        day["arrival_times"],
+                        day["priorities"],
+                        day["doc_services"],
+                        day["med_services"],
                         n_doctors=cfg["n_doc"],
                     )["summary"]["p90_doc_wait"]
                 )
             y_rep[key] = np.asarray(vals, dtype=float)
-            m, sd, lo, hi = mean_ci95(y_rep[key], nonneg=True)
+            m, _, lo, hi = mean_ci95(y_rep[key], nonneg=True)
             cell_rows.append(
                 {
                     "design": d["design_name"],
@@ -295,7 +285,7 @@ def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.D
                 }
             )
 
-        # Replication-level Week 6 factorial contrasts (preserves CRN pairing!)
+        # Compute main and interaction effects per replication to preserve CRN pairing
         cond_a_low_b = y_rep[(+1, -1)] - y_rep[(-1, -1)]
         cond_a_high_b = y_rep[(+1, +1)] - y_rep[(-1, +1)]
         main_a = 0.5 * (cond_a_low_b + cond_a_high_b)
@@ -309,7 +299,7 @@ def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.D
             ("Main Effect B (+ vs - Stress)", main_b),
             ("Interaction Effect A x B", inter_ab),
         ]:
-            m, sd, lo, hi = mean_ci95(arr)
+            m, _, lo, hi = mean_ci95(arr)
             _, p_val = stats.ttest_1samp(arr, 0.0)
             effect_rows.append(
                 {
@@ -329,8 +319,8 @@ def run_factorial_2x2_experiments(cal: dict, uniforms: list[dict]) -> tuple[pd.D
     return cells_df, effects_df
 
 
-def run_sensitivity_and_thresholds(cal: dict, uniforms: list[dict]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run comprehensive one-way sensitivity suite and fine-grained Policy A break-even scan."""
+def run_sensitivity_and_thresholds(cal, streams):
+    """Run one-way sensitivity checks and a fine grid scan around Policy A's 15-min limit."""
     scenarios = [
         {"group": "Baseline", "scenario": "Baseline (Empirical, 240m peak)", "arr_mode": "empirical", "arr_scale": 1.0, "doc_scale": 1.0, "peak_min": 240.0, "fixed_day": True},
         {"group": "Arrival Rate", "scenario": "Arrival rate -10% (180 pts / ~17.2h day)", "arr_mode": "empirical", "arr_scale": 0.90, "doc_scale": 1.0, "peak_min": 240.0, "fixed_day": True},
@@ -346,9 +336,9 @@ def run_sensitivity_and_thresholds(cal: dict, uniforms: list[dict]) -> tuple[pd.
     sens_rows = []
     for sc in scenarios:
         n_pts = int(round(N_PATIENTS * sc["arr_scale"])) if sc["fixed_day"] else N_PATIENTS
-        by_c: dict[int, list[float]] = {2: [], 3: [], 4: []}
-        for u in uniforms:
-            cohort = realize_patient_cohort(
+        by_c = {2: [], 3: [], 4: []}
+        for u in streams:
+            day = generate_daily_patients(
                 u,
                 cal,
                 n_patients=n_pts,
@@ -360,16 +350,16 @@ def run_sensitivity_and_thresholds(cal: dict, uniforms: list[dict]) -> tuple[pd.
             for c in (2, 3, 4):
                 by_c[c].append(
                     simulate_clinic(
-                        cohort["arrival_times"],
-                        cohort["priorities"],
-                        cohort["doc_services"],
-                        cohort["med_services"],
+                        day["arrival_times"],
+                        day["priorities"],
+                        day["doc_services"],
+                        day["med_services"],
                         n_doctors=c,
                         peak_minutes=sc["peak_min"],
                     )["summary"]["p90_doc_wait"]
                 )
 
-        row: dict[str, object] = {"group": sc["group"], "scenario": sc["scenario"], "n_patients": n_pts}
+        row = {"group": sc["group"], "scenario": sc["scenario"], "n_patients": n_pts}
         min_feasible = None
         for c in (2, 3, 4):
             m, _, lo, hi = mean_ci95(by_c[c], nonneg=True)
@@ -384,28 +374,36 @@ def run_sensitivity_and_thresholds(cal: dict, uniforms: list[dict]) -> tuple[pd.
     sens_df = pd.DataFrame(sens_rows)
     sens_df.to_csv(RESULTS_DIR / "sensitivity_summary.csv", index=False)
 
-    # Fine break-even threshold scan for Policy A (3 doctors) from -5% to +10%
+    # Scan arrival rate and consultation time changes from -5% to +10%
     pct_grid = [-5, -2.5, 0, 1, 2, 3, 4, 5, 7.5, 10]
     scan_rows = []
     for pct in pct_grid:
         scale = 1.0 + pct / 100.0
         n_pts_arr = int(round(N_PATIENTS * scale))
         p90_arr_3, p90_arr_4, p90_doc_3, p90_doc_4 = [], [], [], []
-        for u in uniforms:
-            c_arr = realize_patient_cohort(u, cal, n_patients=n_pts_arr, arrival_rate_scale=scale)
+        for u in streams:
+            d_arr = generate_daily_patients(u, cal, n_patients=n_pts_arr, arrival_rate_scale=scale)
             p90_arr_3.append(
-                simulate_clinic(c_arr["arrival_times"], c_arr["priorities"], c_arr["doc_services"], c_arr["med_services"], n_doctors=3)["summary"]["p90_doc_wait"]
+                simulate_clinic(
+                    d_arr["arrival_times"], d_arr["priorities"], d_arr["doc_services"], d_arr["med_services"], n_doctors=3
+                )["summary"]["p90_doc_wait"]
             )
             p90_arr_4.append(
-                simulate_clinic(c_arr["arrival_times"], c_arr["priorities"], c_arr["doc_services"], c_arr["med_services"], n_doctors=4)["summary"]["p90_doc_wait"]
+                simulate_clinic(
+                    d_arr["arrival_times"], d_arr["priorities"], d_arr["doc_services"], d_arr["med_services"], n_doctors=4
+                )["summary"]["p90_doc_wait"]
             )
 
-            c_doc = realize_patient_cohort(u, cal, n_patients=N_PATIENTS, doc_service_scale=scale)
+            d_doc = generate_daily_patients(u, cal, n_patients=N_PATIENTS, doc_service_scale=scale)
             p90_doc_3.append(
-                simulate_clinic(c_doc["arrival_times"], c_doc["priorities"], c_doc["doc_services"], c_doc["med_services"], n_doctors=3)["summary"]["p90_doc_wait"]
+                simulate_clinic(
+                    d_doc["arrival_times"], d_doc["priorities"], d_doc["doc_services"], d_doc["med_services"], n_doctors=3
+                )["summary"]["p90_doc_wait"]
             )
             p90_doc_4.append(
-                simulate_clinic(c_doc["arrival_times"], c_doc["priorities"], c_doc["doc_services"], c_doc["med_services"], n_doctors=4)["summary"]["p90_doc_wait"]
+                simulate_clinic(
+                    d_doc["arrival_times"], d_doc["priorities"], d_doc["doc_services"], d_doc["med_services"], n_doctors=4
+                )["summary"]["p90_doc_wait"]
             )
         scan_rows.append(
             {
@@ -426,10 +424,10 @@ if __name__ == "__main__":
         calibrate_from_csv()
     cal = load_calibrated_inputs()
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    uniforms = spawn_replication_uniforms(N_REPLICATIONS)
+    streams = create_crn_streams(N_REPLICATIONS)
 
-    main_out = run_main_experiments(cal, uniforms)
-    print("=== Main Staffing Policies (50 CRN Replications) ===")
+    main_out = run_main_experiments(cal, streams)
+    print("Main staffing policies (50 CRN replications):")
     cols = [
         "policy_label",
         "p90_doc_wait_mean",
@@ -445,19 +443,19 @@ if __name__ == "__main__":
     ]
     print(main_out["summary"][cols].to_string(index=False))
 
-    print("\n=== Paired CRN Differences (P90 Doctor Wait) ===")
+    print("\nPaired CRN differences (P90 doctor wait):")
     print(main_out["paired"][main_out["paired"]["metric"] == "p90_doc_wait"].to_string(index=False))
 
-    pharm_df = run_pharmacy_counter_experiment(cal, uniforms)
-    print("\n=== Pharmacy Counter Analysis (1 vs 2 Counters) ===")
+    pharm_df = run_pharmacy_counter_experiment(cal, streams)
+    print("\nPharmacy counter analysis (1 vs 2 counters):")
     print(pharm_df.to_string(index=False))
 
-    cells_df, effects_df = run_factorial_2x2_experiments(cal, uniforms)
-    print("\n=== 2x2 Factorial Effects ===")
+    cells_df, effects_df = run_factorial_2x2_experiments(cal, streams)
+    print("\n2x2 factorial effects:")
     print(effects_df.to_string(index=False))
 
-    sens_df, scan_df = run_sensitivity_and_thresholds(cal, uniforms)
-    print("\n=== Sensitivity Summary ===")
+    sens_df, scan_df = run_sensitivity_and_thresholds(cal, streams)
+    print("\nSensitivity summary:")
     print(sens_df[["scenario", "c2_p90_mean", "c3_p90_mean", "c4_p90_mean", "recommended_for_15m_target"]].to_string(index=False))
-    print("\n=== Policy A Break-Even Threshold Scan ===")
+    print("\nPolicy A threshold scan:")
     print(scan_df.to_string(index=False))

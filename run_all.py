@@ -1,13 +1,10 @@
 """
-Single-command reproducibility pipeline for the SEEM3410 Outpatient Clinic DES study.
+Run input calibration, model validation, simulation experiments, and figure generation.
 
 Usage:
     python run_all.py
 """
-from __future__ import annotations
-
 import sys
-import time
 from pathlib import Path
 import pandas as pd
 
@@ -17,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from calibrate_inputs import calibrate_from_csv
-from clinic_des import load_calibrated_inputs, spawn_replication_uniforms
+from clinic_des import create_crn_streams, load_calibrated_inputs
 from config import N_REPLICATIONS, RAW_CSV_PATH, RESULTS_DIR
 from experiments import (
     run_factorial_2x2_experiments,
@@ -33,37 +30,33 @@ from validate_model import (
 )
 
 
-def main() -> None:
-    t0 = time.perf_counter()
+def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("[1/5] Calibrating empirical input distributions from Baseline_2Doc_240Peak...")
+    print("Calibrating input distributions from Baseline_2Doc_240Peak...")
     calibrate_from_csv()
     cal = load_calibrated_inputs()
 
-    print("[2/5] Running 60,000-patient replay verification, out-of-sample validation, and M/M/c check...")
+    print("Running trace replay verification, held-out scenario validation, and M/M/c comparison...")
     raw_df = pd.read_csv(RAW_CSV_PATH)
     replay_df = run_exact_replay_verification(raw_df)
-    oos_df = run_out_of_sample_validation(raw_df, cal)
-    mmc_df = run_analytical_mmc_comparison(cal)
+    run_out_of_sample_validation(raw_df, cal)
+    run_analytical_mmc_comparison(cal)
 
-    print("[3/5] Running 50-replication CRN staffing, pharmacy, 2x2 factorial, and sensitivity experiments...")
-    uniforms = spawn_replication_uniforms(N_REPLICATIONS)
-    main_out = run_main_experiments(cal, uniforms)
-    pharm_df = run_pharmacy_counter_experiment(cal, uniforms)
-    cells_df, effects_df = run_factorial_2x2_experiments(cal, uniforms)
-    sens_df, scan_df = run_sensitivity_and_thresholds(cal, uniforms)
+    print("Running 50-replication CRN staffing, pharmacy, factorial, and sensitivity experiments...")
+    streams = create_crn_streams(N_REPLICATIONS)
+    main_out = run_main_experiments(cal, streams)
+    run_pharmacy_counter_experiment(cal, streams)
+    run_factorial_2x2_experiments(cal, streams)
+    run_sensitivity_and_thresholds(cal, streams)
 
-    print("[4/5] Rendering report figures (figures/fig1..fig5)...")
+    print("Generating figures in figures/...")
     generate_all_figures()
 
-    elapsed = time.perf_counter() - t0
-    print(f"[5/5] Pipeline completed in {elapsed:.2f}s.\n")
-
-    print("--- Verification Summary (All 6 Scenarios, 300 Runs) ---")
+    print("\nVerification Summary (All 6 Scenarios, 300 Runs):")
     print(replay_df.to_string(index=False))
 
-    print("\n--- Main Policy Summary (R = 50 CRN Replications) ---")
+    print("\nMain Policy Summary (R = 50 CRN Replications):")
     cols = [
         "policy_label",
         "p90_doc_wait_mean",

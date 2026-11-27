@@ -1,12 +1,9 @@
 """
-Unified two-stage Discrete-Event Simulation (DES) for an outpatient clinic
-(SEEM3410 Weeks 3-4: Next-Event Time Advance, Future Event List, Continuous Time Averages).
+Two-stage discrete-event simulation (DES) model for the outpatient clinic.
 
 Stage 1 (Consultation): c doctors, non-preemptive priority queue (Priority 3 > 2 > 1, FCFS within class).
 Stage 2 (Pharmacy):     m counters, FCFS queue.
 """
-from __future__ import annotations
-
 import heapq
 import itertools
 import json
@@ -22,21 +19,21 @@ from config import (
     compute_policy_costs,
 )
 
-# Simultaneous-timestamp tie-breaking order in the Future Event List (FEL):
-# 0 = PHARM_END (free pharmacy counter)
-# 1 = ARRIVAL   (patient enters clinic at time t before freed doctor scans waiting room at time t)
-# 2 = DOC_END   (doctor finishes consultation, patient moves to pharmacy, doctor checks waiting room)
+# Tie-breaking order when multiple events occur at the exact same timestamp on the FEL:
+#   0 = PHARM_END (free pharmacy counter first)
+#   1 = ARRIVAL   (new patient joins waiting room at time t before a freed doctor checks it at time t)
+#   2 = DOC_END   (consultation ends, patient moves to pharmacy, freed doctor picks next patient)
 PHARM_END = 0
 ARRIVAL = 1
 DOC_END = 2
 EVENT_NAMES = {PHARM_END: "PHARM_END", ARRIVAL: "ARRIVAL", DOC_END: "DOC_END"}
 
 
-def load_calibrated_inputs(json_path=CALIBRATED_JSON_PATH) -> dict:
+def load_calibrated_inputs(json_path=CALIBRATED_JSON_PATH):
     with open(json_path, "r", encoding="utf-8") as f:
         raw = json.load(f)
 
-    def _to_arrays(pmf_probs: dict, dtype=float):
+    def _to_arrays(pmf_probs, dtype=float):
         items = sorted((dtype(k), float(v)) for k, v in pmf_probs.items())
         vals = np.array([k for k, _ in items], dtype=dtype)
         probs = np.array([v for _, v in items], dtype=float)
@@ -59,19 +56,19 @@ def load_calibrated_inputs(json_path=CALIBRATED_JSON_PATH) -> dict:
     }
 
 
-def inverse_discrete_pmf(u: np.ndarray | float, values: np.ndarray, probs: np.ndarray):
-    """Inverse-transform sampler mapping U ~ Uniform(0,1) onto discrete support."""
+def sample_discrete_pmf(u, values, probs):
+    """Inverse-transform sampling from a discrete PMF given uniform(0, 1) draw(s)."""
     cdf = np.cumsum(probs)
     cdf[-1] = 1.0
     idx = np.searchsorted(cdf, u, side="right")
     return values[np.minimum(idx, len(values) - 1)]
 
 
-def spawn_replication_uniforms(n_replications: int = N_REPLICATIONS, seed: int = MASTER_SEED) -> list[dict]:
+def create_crn_streams(n_replications=N_REPLICATIONS, seed=MASTER_SEED):
     """
-    Create matched Common Random Number (CRN) uniform streams for each replication.
-    Each replication receives four independent RNG substreams:
-      0: interarrival uniforms, 1: priority uniforms, 2: doctor service uniforms, 3: pharmacy uniforms.
+    Build Common Random Number (CRN) uniform streams for each replication.
+    Each replication gets four separate substreams so arrivals, priorities,
+    consultation times, and pharmacy times stay synchronized across policies.
     """
     root_ss = np.random.SeedSequence(seed)
     rep_seeds = root_ss.spawn(n_replications)
@@ -90,19 +87,20 @@ def spawn_replication_uniforms(n_replications: int = N_REPLICATIONS, seed: int =
     return streams
 
 
-def realize_patient_cohort(
-    uniforms: dict,
-    cal: dict,
-    n_patients: int = N_PATIENTS,
-    peak_minutes: float = PEAK_MINUTES,
-    arrival_mode: str = "empirical",
-    arrival_rate_scale: float = 1.0,
-    doc_service_scale: float = 1.0,
-) -> dict:
+def generate_daily_patients(
+    uniforms,
+    cal,
+    n_patients=N_PATIENTS,
+    peak_minutes=PEAK_MINUTES,
+    arrival_mode="empirical",
+    arrival_rate_scale=1.0,
+    doc_service_scale=1.0,
+):
     """
-    Map CRN uniform substreams into concrete arrival times, priorities, and service durations.
-    - arrival_mode='empirical': calibrated discrete gap PMFs (CV ~ 0.26 peak / 0.22 off-peak)
-    - arrival_mode='poisson':   piecewise exponential gaps with identical mean gaps (CV = 1.0)
+    Convert a replication's uniform streams into patient arrival times, priorities,
+    and service durations for one simulated day.
+      - 'empirical': discrete gap PMFs fitted from the data (CV ~ 0.26 peak, 0.22 off-peak)
+      - 'poisson':   piecewise exponential interarrival gaps with the same mean (CV = 1.0)
     """
     if n_patients > MAX_STREAM_PATIENTS:
         raise ValueError(f"n_patients={n_patients} exceeds MAX_STREAM_PATIENTS={MAX_STREAM_PATIENTS}")
@@ -121,10 +119,11 @@ def realize_patient_cohort(
     arrival_times = np.zeros(n_patients, dtype=float)
     clock = 0.0
     for i in range(n_patients):
+        # Check clock < peak_minutes before adding the new gap (matches historical data logic)
         in_peak = clock < peak_minutes
         if arrival_mode == "empirical":
             vals, probs = (pk_vals, pk_probs) if in_peak else (of_vals, of_probs)
-            base_gap = float(inverse_discrete_pmf(u_arr[i], vals, probs))
+            base_gap = float(sample_discrete_pmf(u_arr[i], vals, probs))
         elif arrival_mode == "poisson":
             mean_gap = pk_mean if in_peak else of_mean
             base_gap = float(-mean_gap * np.log(1.0 - u_arr[i]))
@@ -133,9 +132,9 @@ def realize_patient_cohort(
         clock += base_gap / arrival_rate_scale
         arrival_times[i] = clock
 
-    priorities = inverse_discrete_pmf(u_pri, pr_vals, pr_probs).astype(int)
-    doc_services = inverse_discrete_pmf(u_doc, ds_vals, ds_probs).astype(float) * doc_service_scale
-    med_services = inverse_discrete_pmf(u_med, ms_vals, ms_probs).astype(float)
+    priorities = sample_discrete_pmf(u_pri, pr_vals, pr_probs).astype(int)
+    doc_services = sample_discrete_pmf(u_doc, ds_vals, ds_probs).astype(float) * doc_service_scale
+    med_services = sample_discrete_pmf(u_med, ms_vals, ms_probs).astype(float)
 
     return {
         "arrival_times": arrival_times,
@@ -146,26 +145,26 @@ def realize_patient_cohort(
 
 
 def simulate_clinic(
-    arrival_times: np.ndarray,
-    priorities: np.ndarray,
-    doc_services: np.ndarray,
-    med_services: np.ndarray,
-    n_doctors: int,
-    n_pharmacy: int = 1,
-    peak_minutes: float = PEAK_MINUTES,
-    trajectory_grid: np.ndarray | None = None,
-    trace_limit: int = 0,
-) -> dict:
+    arrival_times,
+    priorities,
+    doc_services,
+    med_services,
+    n_doctors,
+    n_pharmacy=1,
+    peak_minutes=PEAK_MINUTES,
+    trajectory_grid=None,
+    trace_limit=0,
+):
     """
-    Run one replication of the unified two-stage outpatient clinic DES from empty initial
-    state until all N arriving patients complete both consultation and pharmacy dispensing.
+    Simulate one clinic day from an empty state until all arriving patients finish
+    both doctor consultation and pharmacy dispensing.
     """
     n = len(arrival_times)
     clock = 0.0
     seq = itertools.count()
 
-    # Future Event List: (event_time, event_type, patient_tie_key, patient_idx, seq_id)
-    fel: list[tuple[float, int, int, int, int]] = []
+    # Future Event List entries: (event_time, event_type, patient_tie_key, patient_idx, seq_id)
+    fel = []
     if n > 0:
         heapq.heappush(fel, (float(arrival_times[0]), ARRIVAL, 0, 0, next(seq)))
 
@@ -173,25 +172,22 @@ def simulate_clinic(
     heapq.heapify(idle_doctors)
     idle_pharm = n_pharmacy
 
-    # Queues:
-    # Doctor priority queue: (-priority, arrival_time, patient_idx) -> highest priority first, FCFS within class
-    # Pharmacy FCFS queue:   (enter_pharm_time, patient_idx, patient_idx)
-    doc_queue: list[tuple[int, float, int]] = []
-    pharm_queue: list[tuple[float, int, int]] = []
+    # Doctor queue stores (-priority, arrival_time, patient_idx) so heapq pops highest priority
+    # first and breaks ties by earliest arrival (FCFS within priority class).
+    doc_queue = []
+    pharm_queue = []
 
-    # Continuous-time state integral accumulators (Week 4)
+    # Time-integrated queue lengths and busy servers for utilization and Little's Law checks
     area_doc_queue = 0.0
     area_doc_busy = 0.0
     area_pharm_queue = 0.0
     area_pharm_busy = 0.0
 
-    # Patient-level output arrays
     assigned_doc = np.zeros(n, dtype=int)
     doc_wait = np.zeros(n, dtype=float)
     med_wait = np.zeros(n, dtype=float)
     departure_time = np.zeros(n, dtype=float)
 
-    # Optional trajectory recording on fixed time grid
     traj_q_doc = None
     traj_idx = 0
     if trajectory_grid is not None:
@@ -202,13 +198,12 @@ def simulate_clinic(
     while fel:
         t, ev_type, _, pid, _ = heapq.heappop(fel)
 
-        # Record queue length on any grid points in [clock, t) before state changes at time t
+        # Log doctor queue length at any grid points before the clock jumps to t
         if traj_q_doc is not None:
             while traj_idx < len(trajectory_grid) and trajectory_grid[traj_idx] < t:
                 traj_q_doc[traj_idx] = len(doc_queue)
                 traj_idx += 1
 
-        # Advance simulation clock and accumulate continuous time integrals
         dt = t - clock
         if dt > 0.0:
             area_doc_queue += len(doc_queue) * dt
@@ -228,7 +223,7 @@ def simulate_clinic(
                 idle_pharm += 1
 
         elif ev_type == ARRIVAL:
-            # Dynamically schedule next patient arrival (Week 4 single-arrival chain)
+            # Schedule the next arrival on the FEL when the current patient arrives
             if pid + 1 < n:
                 nxt = pid + 1
                 heapq.heappush(fel, (float(arrival_times[nxt]), ARRIVAL, nxt, nxt, next(seq)))
@@ -244,7 +239,7 @@ def simulate_clinic(
 
         elif ev_type == DOC_END:
             doc_id = assigned_doc[pid]
-            # Stage 1 -> Stage 2 transition: patient immediately enters pharmacy stage
+            # Patient goes straight from consultation room to pharmacy
             if idle_pharm > 0:
                 idle_pharm -= 1
                 med_wait[pid] = 0.0
@@ -254,7 +249,7 @@ def simulate_clinic(
             else:
                 heapq.heappush(pharm_queue, (clock, pid, pid))
 
-            # Freed doctor selects highest-priority waiting patient (non-preemptive)
+            # Freed doctor takes the highest-priority waiting patient (non-preemptive)
             if doc_queue:
                 _, arr_t, next_pid = heapq.heappop(doc_queue)
                 assigned_doc[next_pid] = doc_id
@@ -277,18 +272,16 @@ def simulate_clinic(
                 }
             )
 
-    # After simulation ends, system is empty (len(doc_queue) == 0 for remaining grid points)
     total_time = departure_time - arrival_times
     makespan = clock
 
-    # Priority-class and arrival-period subsets
     peak_mask = arrival_times <= peak_minutes
     offpeak_mask = ~peak_mask
 
-    def _safe_q90(arr: np.ndarray) -> float:
+    def _safe_q90(arr):
         return float(np.quantile(arr, 0.90)) if len(arr) > 0 else 0.0
 
-    def _safe_mean(arr: np.ndarray) -> float:
+    def _safe_mean(arr):
         return float(np.mean(arr)) if len(arr) > 0 else 0.0
 
     costs = compute_policy_costs(n_doctors=n_doctors, n_pharmacy=n_pharmacy, makespan_minutes=makespan)

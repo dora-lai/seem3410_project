@@ -1,15 +1,13 @@
 """
-Model verification and validation (SEEM3410 Weeks 2, 4, and 5):
-  1. Exact trace replay across all 300 historical runs (60,000 patients) in
-     hospital_sim_6_scenarios.csv -> verifies 0 mismatches in DocWaitTime,
-     MedWaitTime, and TotalTimeInHospital, plus exact sample-path Little's Law.
-  2. Out-of-sample generative validation against all 6 empirical scenarios
-     (including held-out Staffing_1Doc, Staffing_3Doc, Staffing_4Doc, Peak_120Min, Peak_360Min).
-  3. Stationary M/M/c (Erlang C) analytical approximation vs DES comparison (Week 2),
-     demonstrating why stationary queueing formulas break down here.
+Model verification and validation checks:
+  1. Replay all 300 runs (60,000 patients) in hospital_sim_6_scenarios.csv through
+     simulate_clinic to check for exact agreement on waiting times, total hospital
+     time, and sample-path Little's Law.
+  2. Validate our baseline-calibrated simulation against all 6 scenarios in the dataset
+     (5 of which were held out during input fitting).
+  3. Compare stationary M/M/c (Erlang C) formulas against the simulation to show why
+     steady-state queueing formulas do not capture peak-period buildup or priorities.
 """
-from __future__ import annotations
-
 import math
 import numpy as np
 import pandas as pd
@@ -18,18 +16,18 @@ from scipy import stats
 from calibrate_inputs import calibrate_from_csv
 from clinic_des import (
     CALIBRATED_JSON_PATH,
+    create_crn_streams,
+    generate_daily_patients,
     load_calibrated_inputs,
-    realize_patient_cohort,
     simulate_clinic,
-    spawn_replication_uniforms,
 )
 from config import N_PATIENTS, N_REPLICATIONS, RAW_CSV_PATH, RESULTS_DIR
 
 
-def erlang_c_wq(lam_per_min: float, mu_per_min: float, c: int) -> tuple[float, float]:
+def erlang_c_wq(lam_per_min, mu_per_min, c):
     """
-    Stationary M/M/c mean waiting time in queue W_q (minutes) and utilization rho = lam/(c*mu).
-    Returns (rho, math.inf) when rho >= 1.0 (unstable / supercritical queue).
+    Steady-state M/M/c mean queue wait W_q (minutes) and utilization rho = lam / (c * mu).
+    Returns (rho, inf) when rho >= 1.0 since the steady-state queue does not exist.
     """
     a = lam_per_min / mu_per_min
     rho = a / c
@@ -43,8 +41,8 @@ def erlang_c_wq(lam_per_min: float, mu_per_min: float, c: int) -> tuple[float, f
     return rho, wq
 
 
-def run_exact_replay_verification(df: pd.DataFrame) -> pd.DataFrame:
-    """Replay every historical patient stream through simulate_clinic and check exact match."""
+def run_exact_replay_verification(df):
+    """Feed historical arrival and service times into simulate_clinic and verify zero error."""
     records = []
     for (scenario, run_id), grp in df.groupby(["Scenario", "RunID"], sort=True):
         sub = grp.sort_values("PatientID").reset_index(drop=True)
@@ -69,7 +67,7 @@ def run_exact_replay_verification(df: pd.DataFrame) -> pd.DataFrame:
             np.max(np.abs(pats["total_time"] - sub["TotalTimeInHospital"].to_numpy(dtype=float)))
         )
 
-        # Finite-horizon sample-path Little's Law identity: area_Q == sum(W_q)
+        # Sample-path Little's Law over a clearing day: integral of Q(t) dt == sum of waits
         littles_doc_gap = abs(summ["area_doc_queue"] - float(np.sum(pats["doc_wait"])))
         littles_pharm_gap = abs(summ["area_pharm_queue"] - float(np.sum(pats["med_wait"])))
 
@@ -103,12 +101,12 @@ def run_exact_replay_verification(df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def run_out_of_sample_validation(df: pd.DataFrame, cal: dict) -> pd.DataFrame:
+def run_out_of_sample_validation(df, cal):
     """
-    Compare our generative DES (calibrated ONLY on Baseline_2Doc_240Peak) against all
-    six empirical scenarios in hospital_sim_6_scenarios.csv (5 of which are held-out).
+    Simulate 50 runs for each of the 6 scenarios using only the baseline-fitted inputs
+    and compare run-level waiting times against the historical CSV.
     """
-    uniforms = spawn_replication_uniforms(N_REPLICATIONS)
+    streams = create_crn_streams(N_REPLICATIONS)
     t_crit = float(stats.t.ppf(0.975, N_REPLICATIONS - 1))
 
     rows = []
@@ -123,23 +121,21 @@ def run_out_of_sample_validation(df: pd.DataFrame, cal: dict) -> pd.DataFrame:
         n_doc = int(spec["NumDoctors"])
         peak_lim = float(spec["PeakLimit"])
 
-        # Empirical run-level statistics from raw CSV
         emp_grp = df[df["Scenario"] == scen]
         emp_run_p90 = emp_grp.groupby("RunID")["DocWaitTime"].quantile(0.90)
         emp_run_mean_dw = emp_grp.groupby("RunID")["DocWaitTime"].mean()
         emp_run_mean_tot = emp_grp.groupby("RunID")["TotalTimeInHospital"].mean()
 
-        # Generative DES replications using baseline-only calibrated distributions
         sim_p90, sim_mean_dw, sim_mean_tot = [], [], []
-        for u in uniforms:
-            cohort = realize_patient_cohort(
+        for u in streams:
+            day = generate_daily_patients(
                 u, cal, n_patients=N_PATIENTS, peak_minutes=peak_lim, arrival_mode="empirical"
             )
             res = simulate_clinic(
-                cohort["arrival_times"],
-                cohort["priorities"],
-                cohort["doc_services"],
-                cohort["med_services"],
+                day["arrival_times"],
+                day["priorities"],
+                day["doc_services"],
+                day["med_services"],
                 n_doctors=n_doc,
                 n_pharmacy=1,
                 peak_minutes=peak_lim,
@@ -148,9 +144,11 @@ def run_out_of_sample_validation(df: pd.DataFrame, cal: dict) -> pd.DataFrame:
             sim_mean_dw.append(res["mean_doc_wait"])
             sim_mean_tot.append(res["mean_total_time"])
 
-        emp_m, emp_hw = float(emp_run_p90.mean()), t_crit * float(emp_run_p90.std(ddof=1) / np.sqrt(50))
+        emp_m = float(emp_run_p90.mean())
+        emp_hw = t_crit * float(emp_run_p90.std(ddof=1) / np.sqrt(50))
         sim_s = pd.Series(sim_p90)
-        sim_m, sim_hw = float(sim_s.mean()), t_crit * float(sim_s.std(ddof=1) / np.sqrt(50))
+        sim_m = float(sim_s.mean())
+        sim_hw = t_crit * float(sim_s.std(ddof=1) / np.sqrt(50))
         _, p_val = stats.ttest_ind(emp_run_p90.to_numpy(), sim_s.to_numpy(), equal_var=False)
 
         rows.append(
@@ -176,17 +174,16 @@ def run_out_of_sample_validation(df: pd.DataFrame, cal: dict) -> pd.DataFrame:
     return out_df
 
 
-def run_analytical_mmc_comparison(cal: dict) -> pd.DataFrame:
-    """Compare stationary M/M/c (Erlang C) formulas with transient multi-class DES."""
+def run_analytical_mmc_comparison(cal):
+    """Compare M/M/c (Erlang C) steady-state formulas against the transient DES model."""
     raw = cal["raw"]
     lam_pk = raw["rates_and_loads"]["lambda_peak_per_min"]
     lam_of = raw["rates_and_loads"]["lambda_offpeak_per_min"]
-    # Time-weighted day-average arrival rate across N=200 patients (~1,032 min arrival horizon)
     mean_arrival_span = 200.0 / ((240.0 * lam_pk + 792.0 * lam_of) / 1032.0)
     lam_day = 200.0 / mean_arrival_span
     mu_doc = raw["rates_and_loads"]["mu_doc_per_min"]
 
-    uniforms = spawn_replication_uniforms(N_REPLICATIONS)
+    streams = create_crn_streams(N_REPLICATIONS)
     rows = []
     for c in (2, 3, 4):
         rho_pk, wq_pk = erlang_c_wq(lam_pk, mu_doc, c)
@@ -194,17 +191,25 @@ def run_analytical_mmc_comparison(cal: dict) -> pd.DataFrame:
         rho_day, wq_day = erlang_c_wq(lam_day, mu_doc, c)
 
         des_wq_emp, des_p90_emp, des_wq_pois, des_p90_pois = [], [], [], []
-        for u in uniforms:
-            c_emp = realize_patient_cohort(u, cal, arrival_mode="empirical")
+        for u in streams:
+            d_emp = generate_daily_patients(u, cal, arrival_mode="empirical")
             s_emp = simulate_clinic(
-                c_emp["arrival_times"], c_emp["priorities"], c_emp["doc_services"], c_emp["med_services"], n_doctors=c
+                d_emp["arrival_times"],
+                d_emp["priorities"],
+                d_emp["doc_services"],
+                d_emp["med_services"],
+                n_doctors=c,
             )["summary"]
             des_wq_emp.append(s_emp["mean_doc_wait"])
             des_p90_emp.append(s_emp["p90_doc_wait"])
 
-            c_pois = realize_patient_cohort(u, cal, arrival_mode="poisson")
+            d_pois = generate_daily_patients(u, cal, arrival_mode="poisson")
             s_pois = simulate_clinic(
-                c_pois["arrival_times"], c_pois["priorities"], c_pois["doc_services"], c_pois["med_services"], n_doctors=c
+                d_pois["arrival_times"],
+                d_pois["priorities"],
+                d_pois["doc_services"],
+                d_pois["med_services"],
+                n_doctors=c,
             )["summary"]
             des_wq_pois.append(s_pois["mean_doc_wait"])
             des_p90_pois.append(s_pois["p90_doc_wait"])
@@ -238,13 +243,14 @@ if __name__ == "__main__":
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     replay_summary = run_exact_replay_verification(raw_df)
-    print("=== 1. Exact Historical Trace Replay (60,000 patients across 300 runs) ===")
+    print("Exact historical trace replay (60,000 patients across 300 runs):")
     print(replay_summary.to_string(index=False))
 
     oos_summary = run_out_of_sample_validation(raw_df, cal)
-    print("\n=== 2. Out-of-Sample Generative Validation (Calibrated on Baseline Only) ===")
-    print(oos_summary[["Scenario", "Split", "Empirical_P90_Mean", "DES_P90_Mean", "Welch_p_value_P90"]].to_string(index=False))
+    print("\nOut-of-sample validation across all 6 scenarios:")
+    cols = ["Scenario", "Split", "Empirical_P90_Mean", "DES_P90_Mean", "Welch_p_value_P90"]
+    print(oos_summary[cols].to_string(index=False))
 
     mmc_summary = run_analytical_mmc_comparison(cal)
-    print("\n=== 3. Stationary M/M/c (Erlang C) vs Transient Priority DES ===")
+    print("\nStationary M/M/c vs transient priority DES:")
     print(mmc_summary.to_string(index=False))
