@@ -1,0 +1,7 @@
+Scenario,NumDoctors,PeakLimit,runs_checked,max_doc_wait_err,max_med_wait_err,max_total_time_err,max_littles_doc_err,max_littles_pharm_err
+Baseline_2Doc_240Peak,2,240.0,50,0.0,0.0,0.0,0.0,0.0
+Peak_120Min,2,120.0,50,0.0,0.0,0.0,0.0,0.0
+Peak_360Min,2,360.0,50,0.0,0.0,0.0,0.0,0.0
+Staffing_1Doc,1,240.0,50,0.0,0.0,0.0,0.0,0.0
+Staffing_3Doc,3,240.0,50,0.0,0.0,0.0,0.0,0.0
+Staffing_4Doc,4,240.0,50,0.0,0.0,0.0,0.0,0.0

@@ -1,0 +1,7 @@
+Scenario,Split,Doctors,Peak_Cutoff_Min,Empirical_P90_Mean,Empirical_P90_CI95,DES_P90_Mean,DES_P90_CI95,Empirical_Mean_DocWait,DES_Mean_DocWait,Empirical_Mean_TotalTime,DES_Mean_TotalTime,Welch_p_value_P90
+Peak_120Min,Held-out validation,2,120,319.06,"[307.99, 330.14]",318.81,"[309.46, 328.16]",146.27,149.55,162.97,166.32,0.972
+Staffing_1Doc,Held-out validation,1,240,1531.47,"[1518.18, 1544.77]",1540.6,"[1527.97, 1553.23]",836.98,843.65,853.32,860.05,0.32
+Baseline_2Doc_240Peak,Calibration,2,240,360.88,"[349.69, 372.08]",359.76,"[350.31, 369.21]",175.64,175.55,192.39,192.32,0.878
+Staffing_3Doc,Held-out validation,3,240,9.81,"[7.73, 11.90]",11.39,"[8.78, 14.00]",2.62,3.08,19.64,20.16,0.346
+Staffing_4Doc,Held-out validation,4,240,0.0,"[0.00, 0.01]",0.0,"[0.00, 0.00]",0.06,0.06,17.14,17.21,0.322
+Peak_360Min,Held-out validation,2,360,414.87,"[403.36, 426.39]",400.77,"[390.87, 410.66]",198.24,197.2,215.06,213.98,0.065

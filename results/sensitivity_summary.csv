@@ -1,0 +1,10 @@
+group,scenario,n_patients,c2_p90_mean,c2_ci_low,c2_ci_high,c3_p90_mean,c3_ci_low,c3_ci_high,c4_p90_mean,c4_ci_low,c4_ci_high,recommended_for_15m_target
+Baseline,"Baseline (Empirical, 240m peak)",200,359.76,350.31,369.21,11.39,8.78,14.0,0.0,0.0,0.0,3 Doctors
+Arrival Rate,Arrival rate -10% (180 pts / ~17.2h day),180,225.36,215.96,234.76,2.8,2.17,3.42,0.0,0.0,0.0,3 Doctors
+Arrival Rate,Arrival rate +10% (220 pts / ~17.2h day),220,484.01,473.75,494.27,37.28,32.42,42.13,0.28,0.14,0.43,4 Doctors
+Arrival Rate (Fixed N=200),Arrival rate +10% (Fixed N=200 cohort),200,445.07,436.59,453.55,38.62,33.73,43.51,0.34,0.18,0.5,4 Doctors
+Service Time,Consultation time -10%,200,223.5,214.11,232.88,2.52,1.97,3.08,0.0,0.0,0.0,3 Doctors
+Service Time,Consultation time +10%,200,481.78,472.46,491.1,37.17,32.15,42.2,0.28,0.13,0.44,4 Doctors
+Peak Duration,Shorter peak window (120 min),200,318.81,309.46,328.16,4.31,3.47,5.14,0.0,0.0,0.0,3 Doctors
+Peak Duration,Extended peak window (360 min),200,400.77,390.87,410.66,19.37,15.51,23.23,0.02,0.0,0.06,4 Doctors
+Arrival Variability,Piecewise-Poisson walk-ins (CV = 1.0),200,361.66,337.56,385.77,41.22,32.34,50.1,7.01,5.93,8.08,4 Doctors

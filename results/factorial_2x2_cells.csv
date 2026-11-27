@@ -1,0 +1,9 @@
+design,factor_A_doctors,factor_B_regime,p90_mean,p90_ci_low,p90_ci_high,meets_15m_target
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),3 Doctors (-),Empirical (CV=0.26),11.39,8.78,14.0,True
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),4 Doctors (+),Empirical (CV=0.26),0.0,0.0,0.0,True
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),3 Doctors (-),Poisson (CV=1.00),41.22,32.34,50.1,False
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),4 Doctors (+),Poisson (CV=1.00),7.01,5.93,8.08,True
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),3 Doctors (-),Baseline Service,11.39,8.78,14.0,True
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),4 Doctors (+),Baseline Service,0.0,0.0,0.0,True
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),3 Doctors (-),+10% Service,37.17,32.15,42.2,False
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),4 Doctors (+),+10% Service,0.28,0.13,0.44,True

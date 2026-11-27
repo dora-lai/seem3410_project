@@ -1,7 +1,0 @@
-condition,policy,1Pharm_MeanWait,2Pharm_MeanWait,Diff_PharmWait (2-1),1Pharm_TotalTime,2Pharm_TotalTime,Diff_TotalTime (2-1),1Pharm_Util,2Pharm_Util
-Base (1x Pharm Time),Baseline (2 doc),0.36,0.0,-0.36 ± 0.02,193.2,192.84,-0.36 ± 0.02,44.1%,22.1%
-Base (1x Pharm Time),Policy_A (3 doc),0.69,0.02,-0.66 ± 0.02,20.06,19.4,-0.66 ± 0.02,57.2%,28.6%
-Base (1x Pharm Time),Policy_B (4 doc),0.73,0.02,-0.71 ± 0.03,17.18,16.47,-0.71 ± 0.03,57.2%,28.6%
-Slow Pharmacy (2x Pharm Time),Baseline (2 doc),3.58,0.0,-3.58 ± 0.26,199.4,195.82,-3.58 ± 0.26,87.8%,44.0%
-Slow Pharmacy (2x Pharm Time),Policy_A (3 doc),102.65,0.27,-102.38 ± 5.25,125.01,22.63,-102.38 ± 5.25,98.3%,57.0%
-Slow Pharmacy (2x Pharm Time),Policy_B (4 doc),105.35,0.32,-105.03 ± 5.37,124.78,19.75,-105.03 ± 5.37,98.4%,57.0%

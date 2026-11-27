@@ -1,9 +1,7 @@
 __pycache__/
 *.pyc
+.pytest_cache/
 .ipynb_checkpoints/
 venv/
+.venv/
 .DS_Store
-results/*.csv
-figures/*.png
-!results/.gitkeep
-!figures/.gitkeep

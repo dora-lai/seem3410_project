@@ -1,0 +1,4 @@
+Doctors_c,rho_peak,rho_offpeak,rho_day_avg,MMc_Peak_Wq_min,MMc_OffPeak_Wq_min,MMc_DayAvg_Wq_min,DES_Empirical_Mean_Wq_min,DES_Empirical_P90_Wq_min,DES_Poisson_Mean_Wq_min,DES_Poisson_P90_Wq_min
+2,1.557,1.219,1.298,Unstable (inf),Unstable (inf),Unstable (inf),175.55,359.76,176.07,361.66
+3,1.038,0.813,0.865,Unstable (inf),15.94,25.04,3.08,11.39,14.38,41.22
+4,0.778,0.61,0.649,8.42,2.57,3.36,0.06,0.0,2.01,7.01

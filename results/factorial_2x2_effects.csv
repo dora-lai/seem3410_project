@@ -1,0 +1,11 @@
+design,contrast,estimate_min,ci95_low,ci95_high,p_value
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),Effect of 4th Doctor at B(-),-11.39,-14.0,-8.78,1.306798740983618e-11
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),Effect of 4th Doctor at B(+),-34.21,-42.19,-26.24,2.201307287016245e-11
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),Main Effect A (4 vs 3 Doctors),-22.8,-27.8,-17.8,3.315999205794917e-12
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),Main Effect B (+ vs - Stress),18.42,14.34,22.5,4.5386304691136235e-12
+Staffing (3 vs 4 Docs) x Arrival Variability (Empirical vs Poisson),Interaction Effect A x B,-11.41,-14.62,-8.21,3.706336748089745e-09
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),Effect of 4th Doctor at B(-),-11.39,-14.0,-8.78,1.306798740983618e-11
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),Effect of 4th Doctor at B(+),-36.89,-41.79,-31.99,4.2801295870858886e-20
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),Main Effect A (4 vs 3 Doctors),-24.14,-27.82,-20.46,1.0187737793830677e-17
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),Main Effect B (+ vs - Stress),13.03,11.57,14.5,3.8005314451305326e-23
+Staffing (3 vs 4 Docs) x Consultation Time (Baseline vs +10%),Interaction Effect A x B,-12.75,-14.11,-11.39,4.215564350918835e-24
