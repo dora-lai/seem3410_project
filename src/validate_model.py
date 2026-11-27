@@ -42,7 +42,7 @@ def erlang_c_wq(lam_per_min, mu_per_min, c):
 
 
 def run_exact_replay_verification(df):
-    """Feed historical arrival and service times into simulate_clinic and verify zero error."""
+    """Feed recorded arrival and service times from the dataset into simulate_clinic and verify zero error."""
     records = []
     for (scenario, run_id), grp in df.groupby(["Scenario", "RunID"], sort=True):
         sub = grp.sort_values("PatientID").reset_index(drop=True)
@@ -104,7 +104,7 @@ def run_exact_replay_verification(df):
 def run_out_of_sample_validation(df, cal):
     """
     Simulate 50 runs for each of the 6 scenarios using only the baseline-fitted inputs
-    and compare run-level waiting times against the historical CSV.
+    and compare run-level waiting times against the Kaggle benchmark CSV.
     """
     streams = create_crn_streams(N_REPLICATIONS)
     t_crit = float(stats.t.ppf(0.975, N_REPLICATIONS - 1))
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     replay_summary = run_exact_replay_verification(raw_df)
-    print("Exact historical trace replay (60,000 patients across 300 runs):")
+    print("Exact dataset trace replay (60,000 patients across 300 runs):")
     print(replay_summary.to_string(index=False))
 
     oos_summary = run_out_of_sample_validation(raw_df, cal)

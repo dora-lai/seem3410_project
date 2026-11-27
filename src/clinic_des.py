@@ -119,7 +119,7 @@ def generate_daily_patients(
     arrival_times = np.zeros(n_patients, dtype=float)
     clock = 0.0
     for i in range(n_patients):
-        # Check clock < peak_minutes before adding the new gap (matches historical data logic)
+        # Check clock < peak_minutes before adding the new gap (matches benchmark dataset logic)
         in_peak = clock < peak_minutes
         if arrival_mode == "empirical":
             vals, probs = (pk_vals, pk_probs) if in_peak else (of_vals, of_probs)

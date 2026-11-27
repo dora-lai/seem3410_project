@@ -31,18 +31,18 @@ def _apply_plot_style():
     plt.rcParams.update(
         {
             "font.family": "DejaVu Sans",
-            "font.size": 9.8,
-            "axes.titlesize": 10.5,
+            "font.size": 10.5,
+            "axes.titlesize": 11.4,
             "axes.titleweight": "bold",
-            "axes.titlepad": 9.0,
-            "axes.labelsize": 9.8,
-            "xtick.labelsize": 9.0,
-            "ytick.labelsize": 9.0,
-            "legend.fontsize": 8.4,
+            "axes.titlepad": 8.5,
+            "axes.labelsize": 10.6,
+            "xtick.labelsize": 9.8,
+            "ytick.labelsize": 9.8,
+            "legend.fontsize": 9.1,
             "axes.spines.top": False,
             "axes.spines.right": False,
             "axes.edgecolor": "#486581",
-            "axes.linewidth": 0.85,
+            "axes.linewidth": 0.9,
             "axes.grid": True,
             "grid.color": COLORS["grid"],
             "grid.linestyle": "-",
@@ -55,31 +55,30 @@ def _apply_plot_style():
 
 
 def make_fig1_clinic_flow():
-    fig = plt.figure(figsize=(11.0, 2.65))
+    fig = plt.figure(figsize=(8.8, 2.45))
     ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
-    ax.set_xlim(0.0, 11.0)
-    ax.set_ylim(0.0, 2.65)
+    ax.set_xlim(0.0, 8.8)
+    ax.set_ylim(0.0, 2.45)
     ax.axis("off")
 
-    # Subtle dashed system boundary around the two clinic stages
     boundary = FancyBboxPatch(
-        (1.96, 0.26),
-        7.08,
-        2.12,
-        boxstyle="round,pad=0.05,rounding_size=0.08",
-        linewidth=1.0,
+        (1.50, 0.18),
+        5.80,
+        2.06,
+        boxstyle="round,pad=0.04,rounding_size=0.07",
+        linewidth=1.05,
         linestyle="--",
         edgecolor="#829AB1",
         facecolor="#F8FAFC",
     )
     ax.add_patch(boundary)
     ax.text(
-        5.50,
-        2.19,
+        4.40,
+        2.06,
         "Two-Stage Outpatient Clinic Simulation Boundary",
         ha="center",
         va="center",
-        fontsize=8.8,
+        fontsize=10.0,
         color=COLORS["slate"],
         fontweight="bold",
     )
@@ -89,49 +88,49 @@ def make_fig1_clinic_flow():
             (x, y),
             w,
             h,
-            boxstyle="round,pad=0.03,rounding_size=0.06",
-            linewidth=1.05,
+            boxstyle="round,pad=0.025,rounding_size=0.055",
+            linewidth=1.1,
             edgecolor=edge,
             facecolor=fill,
         )
         ax.add_patch(box)
         ax.text(
             x + w / 2.0,
-            y + h * 0.68,
+            y + h * 0.69,
             title,
             ha="center",
             va="center",
-            fontsize=8.8,
+            fontsize=9.9,
             fontweight="bold",
             color="#102A43",
         )
         ax.text(
             x + w / 2.0,
-            y + h * 0.31,
+            y + h * 0.30,
             subtitle,
             ha="center",
             va="center",
-            fontsize=7.9,
+            fontsize=9.0,
             color="#334E68",
-            linespacing=1.30,
+            linespacing=1.26,
         )
 
-    y0 = 0.52
-    bh = 1.24
-    add_node(0.12, y0, 1.54, bh, "Patient Arrivals", "200 patients / day\nPeak (<240m) & Off-peak", fill="#F8FAFC", edge=COLORS["slate"])
-    add_node(2.12, y0, 1.52, bh, "Waiting Room Q1", "Priority 3 > 2 > 1\nFCFS within class", fill="#FFFFFF", edge=COLORS["navy"])
-    add_node(3.98, y0, 1.52, bh, "Stage 1: Doctors", "c in {2, 3, 4} doctors\nMean 13.4 min", fill="#F0F4F8", edge=COLORS["navy"])
-    add_node(5.84, y0, 1.44, bh, "Pharm Queue Q2", "FCFS discipline\nDirect transfer", fill="#FFFFFF", edge=COLORS["muted_blue"])
-    add_node(7.62, y0, 1.28, bh, "Stage 2: Pharm", "m = 1 counter\nMean 3.0 min", fill="#F0F4F8", edge=COLORS["muted_blue"])
-    add_node(9.36, y0, 1.50, bh, "Clinic Exit", "Record waits &\nshift completion", fill="#F8FAFC", edge=COLORS["slate"])
+    y0 = 0.40
+    bh = 1.32
+    add_node(0.06, y0, 1.24, bh, "Arrivals", "200 pts / day\nPeak & Off-peak", fill="#F8FAFC", edge=COLORS["slate"])
+    add_node(1.62, y0, 1.26, bh, "Doc Queue Q1", "Prio 3 > 2 > 1\nFCFS in class", fill="#FFFFFF", edge=COLORS["navy"])
+    add_node(3.16, y0, 1.26, bh, "Doctors", "c in {2, 3, 4}\nMean 13.4 min", fill="#F0F4F8", edge=COLORS["navy"])
+    add_node(4.70, y0, 1.20, bh, "Pharm Q2", "FCFS queue\nDirect transfer", fill="#FFFFFF", edge=COLORS["muted_blue"])
+    add_node(6.16, y0, 1.04, bh, "Pharmacy", "m = 1 or 2\nMean 3.0 m", fill="#F0F4F8", edge=COLORS["muted_blue"])
+    add_node(7.52, y0, 1.22, bh, "Clinic Exit", "Wait KPIs &\nclosing time", fill="#F8FAFC", edge=COLORS["slate"])
 
     yc = y0 + bh / 2.0
     arrows = [
-        (1.72, 2.06),
-        (3.70, 3.92),
-        (5.56, 5.78),
-        (7.34, 7.56),
-        (8.96, 9.30),
+        (1.33, 1.58),
+        (2.91, 3.12),
+        (4.45, 4.66),
+        (5.93, 6.12),
+        (7.23, 7.48),
     ]
     for x_start, x_end in arrows:
         ax.add_patch(
@@ -139,13 +138,13 @@ def make_fig1_clinic_flow():
                 (x_start, yc),
                 (x_end, yc),
                 arrowstyle="-|>",
-                mutation_scale=11,
-                linewidth=1.15,
+                mutation_scale=11.5,
+                linewidth=1.2,
                 color=COLORS["navy"],
             )
         )
 
-    fig.savefig(FIGURES_DIR / "fig1_clinic_flow.png", bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(FIGURES_DIR / "fig1_clinic_flow.png", bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
 
 
@@ -157,11 +156,10 @@ def make_fig2_validation():
     fig, axes = plt.subplots(
         1,
         2,
-        figsize=(10.2, 3.65),
-        gridspec_kw={"width_ratios": [1.0, 1.25], "wspace": 0.28},
+        figsize=(8.9, 3.45),
+        gridspec_kw={"width_ratios": [1.0, 1.22], "wspace": 0.30},
     )
 
-    # Panel (a): Peak vs Off-peak interarrival PMF
     ax = axes[0]
     gaps = [3, 4, 5, 6, 7]
     pk_p = [cal["interarrival_peak"]["probs"][str(g)] for g in gaps]
@@ -175,7 +173,7 @@ def make_fig2_validation():
         width=w,
         color=COLORS["terracotta"],
         alpha=0.90,
-        label="Peak (t < 240 min, mean 4.30 min)",
+        label="Peak (<240m, mean 4.30m)",
     )
     ax.bar(
         x + w / 2.0,
@@ -183,17 +181,16 @@ def make_fig2_validation():
         width=w,
         color=COLORS["navy"],
         alpha=0.88,
-        label="Off-peak (t >= 240 min, mean 5.49 min)",
+        label="Off-peak (>=240m, mean 5.49m)",
     )
     ax.set_xticks(x)
     ax.set_xticklabels([f"{g}" for g in gaps])
     ax.set_xlabel("Interarrival Gap (minutes)")
     ax.set_ylabel("Empirical Probability")
-    ax.set_ylim(0, 0.55)
-    ax.set_title("(a) Peak vs. Off-Peak Interarrival PMF")
+    ax.set_ylim(0, 0.56)
+    ax.set_title("(a) Calibrated Interarrival PMFs")
     ax.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="none")
 
-    # Panel (b): Historical vs calibrated DES across all 6 scenarios
     ax2 = axes[1]
     order = [
         "Staffing_1Doc",
@@ -235,7 +232,7 @@ def make_fig2_validation():
         error_kw={"elinewidth": 1.0, "ecolor": "#102A43"},
         color=COLORS["navy"],
         alpha=0.88,
-        label="Historical CSV (50 runs)",
+        label="Kaggle Dataset (50 runs)",
     )
     ax2.bar(
         idx + w / 2.0,
@@ -249,15 +246,15 @@ def make_fig2_validation():
         label="Calibrated DES (50 runs)",
     )
     ax2.set_yscale("symlog", linthresh=20.0)
-    ax2.set_ylim(0, 3500)
+    ax2.set_ylim(0, 3800)
     ax2.set_xticks(idx)
     ax2.set_xticklabels(labels)
     ax2.set_xlabel("Scenario (*used for calibration)")
-    ax2.set_ylabel("Run-Level P90 Doctor Wait (min, symlog)")
-    ax2.set_title("(b) Historical vs. Calibrated DES Across 6 Scenarios")
+    ax2.set_ylabel("P90 Doctor Wait (min, symlog)")
+    ax2.set_title("(b) Dataset vs. Calibrated DES (6 Scenarios)")
     ax2.legend(loc="upper right", frameon=True, facecolor="white", edgecolor="none")
 
-    fig.savefig(FIGURES_DIR / "fig2_validation.png", bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(FIGURES_DIR / "fig2_validation.png", bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
 
 
@@ -268,8 +265,8 @@ def make_fig3_main_results():
     fig, axes = plt.subplots(
         1,
         2,
-        figsize=(10.2, 3.65),
-        gridspec_kw={"width_ratios": [1.18, 1.0], "wspace": 0.28},
+        figsize=(8.9, 3.45),
+        gridspec_kw={"width_ratios": [1.14, 1.0], "wspace": 0.30},
     )
 
     styles = [
@@ -278,29 +275,27 @@ def make_fig3_main_results():
         ("Policy_B", "4 Doctors (Policy B)", COLORS["navy"]),
     ]
 
-    # Panel (a): Doctor queue length Q1(t) across the operating day
     ax = axes[0]
-    ax.axvspan(0, 240, color="#E2E8F0", alpha=0.55, label="Peak window (0-240 min)")
-    ax.axvline(1080, color=COLORS["slate"], linestyle="--", linewidth=1.1, label="18-hr shift end (1,080 min)")
+    ax.axvspan(0, 240, color="#E2E8F0", alpha=0.55, label="Peak (0-240 min)")
+    ax.axvline(1080, color=COLORS["slate"], linestyle="--", linewidth=1.1, label="Shift end (1,080 min)")
 
     for key, label, col in styles:
         t = traj["time_min"]
         mean_q = traj[f"{key}_mean_q"]
         lo_q = traj[f"{key}_p10_q"]
         hi_q = traj[f"{key}_p90_q"]
-        ax.plot(t, mean_q, color=col, linewidth=1.9, label=label)
+        ax.plot(t, mean_q, color=col, linewidth=2.0, label=label)
         ax.fill_between(t, lo_q, hi_q, color=col, alpha=0.14)
 
     ax.set_xlim(0, 1400)
-    ax.set_ylim(0, 72)
-    ax.set_xlabel("Time Since Clinic Opening (minutes)")
+    ax.set_ylim(0, 74)
+    ax.set_xlabel("Time Since Opening (minutes)")
     ax.set_ylabel("Waiting Patients $Q_1(t)$")
     ax.set_title("(a) Doctor Queue Length Across the Day")
-    ax.legend(loc="upper left", fontsize=8.1, frameon=True, facecolor="white", edgecolor="none")
+    ax.legend(loc="upper left", fontsize=8.8, frameon=True, facecolor="white", edgecolor="none")
 
-    # Panel (b): Run-level P90 wait overall and by priority class
     ax2 = axes[1]
-    groups = ["Overall", "Priority 1", "Priority 2", "Priority 3"]
+    groups = ["Overall", "Prio 1", "Prio 2", "Prio 3"]
     metric_keys = ["p90_doc_wait", "p90_prio1_wait", "p90_prio2_wait", "p90_prio3_wait"]
     x = np.arange(len(groups))
     w = 0.24
@@ -313,19 +308,19 @@ def make_fig3_main_results():
         PRIMARY_TARGET_MIN,
         color=COLORS["slate"],
         linestyle="--",
-        linewidth=1.25,
+        linewidth=1.3,
         label="15-min target",
     )
     ax2.set_yscale("symlog", linthresh=20.0)
-    ax2.set_ylim(0, 800)
+    ax2.set_ylim(0, 950)
     ax2.set_xticks(x)
     ax2.set_xticklabels(groups)
-    ax2.set_xlabel("Patient Group (Priority 3 = Urgent)")
-    ax2.set_ylabel("Run-Level P90 Doctor Wait (min, symlog)")
+    ax2.set_xlabel("Patient Group (Prio 3 = Urgent)")
+    ax2.set_ylabel("P90 Doctor Wait (min, symlog)")
     ax2.set_title("(b) P90 Doctor Wait by Priority Class")
-    ax2.legend(loc="upper right", fontsize=8.1, frameon=True, facecolor="white", edgecolor="none")
+    ax2.legend(loc="upper right", fontsize=8.8, frameon=True, facecolor="white", edgecolor="none")
 
-    fig.savefig(FIGURES_DIR / "fig3_main_results.png", bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(FIGURES_DIR / "fig3_main_results.png", bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
 
 
@@ -336,17 +331,16 @@ def make_fig4_sensitivity():
     fig, axes = plt.subplots(
         1,
         2,
-        figsize=(10.2, 3.65),
-        gridspec_kw={"width_ratios": [1.08, 1.0], "wspace": 0.28},
+        figsize=(8.9, 3.45),
+        gridspec_kw={"width_ratios": [1.08, 1.0], "wspace": 0.30},
     )
 
-    # Panel (a): -5% to +10% arrival-rate and consultation-time sensitivity
     ax = axes[0]
     ax.axhline(
         PRIMARY_TARGET_MIN,
         color=COLORS["slate"],
         linestyle="--",
-        linewidth=1.2,
+        linewidth=1.25,
         label="15-min target",
     )
     ax.plot(
@@ -354,45 +348,44 @@ def make_fig4_sensitivity():
         scan["arr_rate_c3_p90"],
         "o-",
         color=COLORS["teal"],
-        linewidth=1.85,
-        markersize=5.0,
-        label="Policy A (3 Docs): Arrival rate",
+        linewidth=1.95,
+        markersize=5.2,
+        label="3 Docs: Arrival rate",
     )
     ax.plot(
         scan["pct_change"],
         scan["doc_serv_c3_p90"],
         "s--",
         color=COLORS["terracotta"],
-        linewidth=1.85,
-        markersize=4.8,
-        label="Policy A (3 Docs): Consult time",
+        linewidth=1.95,
+        markersize=5.0,
+        label="3 Docs: Consult time",
     )
     ax.plot(
         scan["pct_change"],
         scan["arr_rate_c4_p90"],
         "^-",
         color=COLORS["navy"],
-        linewidth=1.7,
-        markersize=5.0,
-        label="Policy B (4 Docs): Arrival rate",
+        linewidth=1.75,
+        markersize=5.2,
+        label="4 Docs: Arrival rate",
     )
     ax.plot(
         scan["pct_change"],
         scan["doc_serv_c4_p90"],
         "d:",
         color=COLORS["muted_blue"],
-        linewidth=1.7,
-        markersize=4.8,
-        label="Policy B (4 Docs): Consult time",
+        linewidth=1.75,
+        markersize=5.0,
+        label="4 Docs: Consult time",
     )
     ax.set_xlim(-5.6, 10.6)
-    ax.set_ylim(-1.5, 46.0)
-    ax.set_xlabel("Parameter Change from Baseline (%)")
-    ax.set_ylabel("Run-Level P90 Doctor Wait (minutes)")
-    ax.set_title("(a) Arrival Rate & Consultation Time Sensitivity")
-    ax.legend(loc="upper left", fontsize=8.0, frameon=True, facecolor="white", edgecolor="none")
+    ax.set_ylim(-1.5, 48.0)
+    ax.set_xlabel("Change from Baseline (%)")
+    ax.set_ylabel("P90 Doctor Wait (minutes)")
+    ax.set_title("(a) Arrival Rate & Service Time Shifts")
+    ax.legend(loc="upper left", fontsize=8.8, frameon=True, facecolor="white", edgecolor="none")
 
-    # Panel (b): Clean 2x2 interaction plot (3 vs 4 doctors x Empirical vs Poisson arrivals)
     ax2 = axes[1]
     d1 = cells[cells["design"].str.startswith("Staffing (3 vs 4 Docs) x Arrival Variability")]
     emp_3 = d1[(d1["factor_A_doctors"].str.startswith("3")) & (d1["factor_B_regime"].str.startswith("Empirical"))].iloc[0]
@@ -405,7 +398,7 @@ def make_fig4_sensitivity():
         PRIMARY_TARGET_MIN,
         color=COLORS["slate"],
         linestyle="--",
-        linewidth=1.2,
+        linewidth=1.25,
         label="15-min target",
     )
     ax2.errorbar(
@@ -416,7 +409,7 @@ def make_fig4_sensitivity():
             [emp_3["p90_ci_high"] - emp_3["p90_mean"], emp_4["p90_ci_high"] - emp_4["p90_mean"]],
         ],
         fmt="o-",
-        linewidth=2.0,
+        linewidth=2.1,
         markersize=6.5,
         capsize=3.5,
         color=COLORS["teal"],
@@ -430,22 +423,22 @@ def make_fig4_sensitivity():
             [poi_3["p90_ci_high"] - poi_3["p90_mean"], poi_4["p90_ci_high"] - poi_4["p90_mean"]],
         ],
         fmt="s--",
-        linewidth=2.0,
+        linewidth=2.1,
         markersize=6.5,
         capsize=3.5,
         color=COLORS["terracotta"],
-        label="Piecewise-Poisson (CV = 1.00)",
+        label="Poisson Walk-ins (CV = 1.00)",
     )
     ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(["3 Doctors (Policy A)", "4 Doctors (Policy B)"])
-    ax2.set_xlim(-0.22, 1.25)
-    ax2.set_ylim(-2.0, 62.0)
+    ax2.set_xticklabels(["3 Doctors", "4 Doctors"])
+    ax2.set_xlim(-0.25, 1.25)
+    ax2.set_ylim(-2.0, 64.0)
     ax2.set_xlabel("Doctor Staffing Level")
-    ax2.set_ylabel("Run-Level P90 Doctor Wait (minutes)")
-    ax2.set_title("(b) Staffing x Arrival Variability Interaction")
-    ax2.legend(loc="upper right", fontsize=8.1, frameon=True, facecolor="white", edgecolor="none")
+    ax2.set_ylabel("P90 Doctor Wait (minutes)")
+    ax2.set_title("(b) Staffing x Arrival CV Interaction")
+    ax2.legend(loc="upper right", fontsize=8.8, frameon=True, facecolor="white", edgecolor="none")
 
-    fig.savefig(FIGURES_DIR / "fig4_sensitivity.png", bbox_inches="tight", pad_inches=0.08)
+    fig.savefig(FIGURES_DIR / "fig4_sensitivity.png", bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
 
 

@@ -75,7 +75,7 @@ def test_sample_path_littles_law_and_crn_determinism():
         assert out4["summary"]["mean_doc_wait"] <= out3["summary"]["mean_doc_wait"] <= out2["summary"]["mean_doc_wait"]
 
 
-def test_exact_historical_replay_zero_mismatch():
+def test_exact_dataset_replay_zero_mismatch():
     df = pd.read_csv(RAW_CSV_PATH)
     # Check RunID=1 across all 6 scenarios (1,200 patients)
     sub_df = df[df["RunID"] == 1]

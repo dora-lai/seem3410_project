@@ -7,14 +7,14 @@ This repository contains the Python discrete-event simulation (DES) code, input 
 
 ## Project Layout
 
-- `data/`: Raw dataset (`hospital_sim_6_scenarios.csv`, 60,000 patient rows across 6 scenarios) and baseline-fitted input distributions (`calibrated_inputs.json`).
-- `src/config.py`: Simulation constants, staffing policy definitions, random seed (`3410`), and daily shift/overtime cost formulas in HKD.
+- `data/`: Public synthetic Kaggle dataset *Hospital Queue and Patient Flow Simulation* by Juneminazuki (`hospital_sim_6_scenarios.csv`, 60,000 simulated patient rows across 6 scenarios; [Kaggle link](https://www.kaggle.com/datasets/juneminazuki/hospital-queue-and-patient-flow-simulation)) and baseline-fitted input distributions (`calibrated_inputs.json`).
+- `src/config.py`: Simulation constants, staffing policy definitions, random seed (`3410`), and assumed daily shift/overtime cost formulas in HKD.
 - `src/calibrate_inputs.py`: Data checks, empirical PMF fitting on `Baseline_2Doc_240Peak`, and statistical independence tests.
 - `src/clinic_des.py`: Two-stage next-event DES engine using a `heapq` Future Event List and Common Random Numbers (CRN) streams.
-- `src/validate_model.py`: Exact 300-run historical trace replay, held-out scenario validation, and analytical $M/M/c$ comparison.
+- `src/validate_model.py`: Exact 300-run dataset trace replay, held-out scenario validation, and analytical $M/M/c$ comparison.
 - `src/experiments.py`: 50-replication CRN policy comparisons, pharmacy capacity check, $2 \times 2$ factorial experiments, and sensitivity scans.
 - `src/plot_results.py`: Generates the four report figures in `figures/`.
-- `tests/test_clinic_des.py`: `pytest` unit tests covering priority tie-breaking, sample-path Little's Law, and historical trace replay.
+- `tests/test_clinic_des.py`: `pytest` unit tests covering priority tie-breaking, sample-path Little's Law, and dataset trace replay.
 - `results/` and `figures/`: CSV summary tables and 300 DPI PNG plots produced by `run_all.py`.
 
 ## Setup and Usage
@@ -43,4 +43,4 @@ All simulation runs are seeded from `MASTER_SEED = 3410` via `numpy.random.SeedS
 | **Policy A** | **3 / 1** | **11.4 min [8.8, 14.0]** | **3.1 min** | **14.1 min** | **0.68 min** | **85.2%** | **HK$30,600** | **HK$30,625** |
 | Policy B | 4 / 1 | 0.0 min [0.0, 0.0] | 0.06 min | 0.0 min | 0.74 min | 63.9% | HK$39,600 | HK$39,630 |
 
-Replaying all 300 historical runs (60,000 patients) through `simulate_clinic` produces zero error on `DocWaitTime`, `MedWaitTime`, `TotalTimeInHospital`, and sample-path Little's Law. Under baseline conditions, **Policy A (3 doctors, 1 pharmacy counter)** meets the 15-minute `P90` waiting-time target (`11.4` min) while avoiding the 4.6-hour daily overtime of 2 doctors and the extra HK$9,005/day cost of a 4th doctor. Sensitivity checks show Policy A stays within the 15-minute target up to roughly `+2%` growth in arrival rate or consultation duration, while unscheduled Poisson walk-ins (`CV = 1.00`) require 4 doctors.
+Replaying all 300 benchmark runs (60,000 simulated patients) through `simulate_clinic` produces zero error on `DocWaitTime`, `MedWaitTime`, `TotalTimeInHospital`, and sample-path Little's Law. Under baseline conditions, **Policy A (3 doctors, 1 pharmacy counter)** meets the 15-minute `P90` waiting-time target (`11.4` min) while avoiding the 4.6-hour daily overtime of 2 doctors and the extra HK$9,005/day cost of a 4th doctor. Sensitivity checks show Policy A stays within the 15-minute target up to roughly `+2%` growth in arrival rate or consultation duration, while unscheduled Poisson walk-ins (`CV = 1.00`) require 4 doctors.
